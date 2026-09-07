@@ -53,12 +53,13 @@ def test_signup_for_unknown_activity_returns_404(client):
     assert response.json() == {"detail": "Activity not found"}
 
 
-# New edge case tests
-
 def test_root_endpoint_redirects_to_static_index(client):
-    # Arrange & Act
-    response = client.get("/", follow_redirects=False)
-    
+    # Arrange
+    request_path = "/"
+
+    # Act
+    response = client.get(request_path, follow_redirects=False)
+
     # Assert
     assert response.status_code == 307
     assert response.headers["location"] == "/static/index.html"
@@ -126,14 +127,12 @@ def test_signup_when_activity_reaches_capacity_after_previous_signup(client):
     email1 = "student1@mergington.edu"
     email2 = "student2@mergington.edu"
 
-    # Act - First signup should succeed
+    # Act
     response1 = client.post(f"/activities/{activity_name}/signup", params={"email": email1})
-    assert response1.status_code == 200
-
-    # Act - Second signup should fail (now at capacity)
     response2 = client.post(f"/activities/{activity_name}/signup", params={"email": email2})
 
     # Assert
+    assert response1.status_code == 200
     assert response2.status_code == 400
     assert response2.json() == {"detail": "Activity is at maximum capacity"}
 
@@ -145,12 +144,14 @@ def test_multiple_successful_signups_to_same_activity(client):
     emails = ["student1@mergington.edu", "student2@mergington.edu", "student3@mergington.edu"]
 
     # Act
-    for email in emails:
-        response = client.post(f"/activities/{activity_name}/signup", params={"email": email})
-        assert response.status_code == 200
-
-    # Assert - Verify all students were added
+    responses = [
+        client.post(f"/activities/{activity_name}/signup", params={"email": email})
+        for email in emails
+    ]
     activities_response = client.get("/activities")
+
+    # Assert
+    assert all(response.status_code == 200 for response in responses)
     participants = activities_response.json()[activity_name]["participants"]
     for email in emails:
         assert email in participants
@@ -164,21 +165,26 @@ def test_signup_across_different_activities(client):
     activities["Programming Class"]["max_participants"] = 25
     activities["Gym Class"]["max_participants"] = 35
 
-    # Act - Sign up for multiple activities
-    for activity_name in activities_to_join:
-        response = client.post(f"/activities/{activity_name}/signup", params={"email": email})
-        assert response.status_code == 200
-
-    # Assert - Verify student is in all activities
+    # Act
+    responses = [
+        client.post(f"/activities/{activity_name}/signup", params={"email": email})
+        for activity_name in activities_to_join
+    ]
     activities_response = client.get("/activities")
+
+    # Assert
+    assert all(response.status_code == 200 for response in responses)
     activities_data = activities_response.json()
     for activity_name in activities_to_join:
         assert email in activities_data[activity_name]["participants"]
 
 
 def test_get_activities_returns_structure_with_required_fields(client):
-    # Arrange & Act
-    response = client.get("/activities")
+    # Arrange
+    request_path = "/activities"
+
+    # Act
+    response = client.get(request_path)
 
     # Assert
     assert response.status_code == 200
@@ -190,4 +196,3 @@ def test_get_activities_returns_structure_with_required_fields(client):
         assert "participants" in activity_data
         assert isinstance(activity_data["participants"], list)
         assert isinstance(activity_data["max_participants"], int)
-
